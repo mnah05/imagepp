@@ -1,4 +1,3 @@
-APP_NAME=app
 
 # PID files for process management
 API_PID=.api.pid
