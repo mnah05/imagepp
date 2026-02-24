@@ -26,12 +26,12 @@ type Config struct {
 	DatabaseURL string `env:"DATABASE_URL,required"`
 	DBPool      DBPoolConfig
 
-	// redis / asynq
-	RedisAddr     string `env:"REDIS_ADDR,required"`
-	RedisUsername string `env:"REDIS_USERNAME,required"`
-	RedisPassword string `env:"REDIS_PASSWORD"`
-	RedisDB       int    `env:"REDIS_DB" envDefault:"0"`
+	// redis / asynq - prefer REDIS_URL as primary source
 	RedisUrl      string `env:"REDIS_URL,required"`
+	RedisAddr     string `env:"REDIS_ADDR"`     // optional, derived from REDIS_URL if not provided
+	RedisUsername string `env:"REDIS_USERNAME"` // optional, derived from REDIS_URL if not provided
+	RedisPassword string `env:"REDIS_PASSWORD"` // optional, derived from REDIS_URL if not provided
+	RedisDB       int    `env:"REDIS_DB"`       // optional, derived from REDIS_URL if not provided
 }
 
 var (

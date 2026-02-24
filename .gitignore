@@ -43,6 +43,10 @@ temp/
 # Build artifacts
 dist/
 build/
+bin/
+
+# Local AI / prompt scratch files
+request.md
 
 # Docker
 .dockerignore

@@ -9,6 +9,7 @@ import (
 	"imagepp/internal/db"
 	"imagepp/internal/jobs"
 	"imagepp/internal/services"
+	"time"
 
 	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -30,8 +31,9 @@ func HandleImagePP(ctx context.Context, t *asynq.Task) error {
 
 	// Update status to "processing"
 	if err := Queries.UpdateImageStatus(ctx, db.UpdateImageStatusParams{
-		ID:     int32(p.ImageID),
-		Status: pgtype.Text{String: "processing", Valid: true},
+		ID:        int32(p.ImageID),
+		Status:    pgtype.Text{String: "processing", Valid: true},
+		UpdatedAt: pgtype.Timestamp{Time: time.Now(), Valid: true},
 	}); err != nil {
 		return fmt.Errorf("failed to update image status to processing: %w", err)
 	}
@@ -40,8 +42,9 @@ func HandleImagePP(ctx context.Context, t *asynq.Task) error {
 	s3Svc, err := services.NewS3Service(ctx, p.BucketName)
 	if err != nil {
 		_ = Queries.UpdateImageStatus(ctx, db.UpdateImageStatusParams{
-			ID:     int32(p.ImageID),
-			Status: pgtype.Text{String: "failed", Valid: true},
+			ID:        int32(p.ImageID),
+			Status:    pgtype.Text{String: "failed", Valid: true},
+			UpdatedAt: pgtype.Timestamp{Time: time.Now(), Valid: true},
 		})
 		return fmt.Errorf("failed to create S3 service: %w", err)
 	}
@@ -53,8 +56,9 @@ func HandleImagePP(ctx context.Context, t *asynq.Task) error {
 	imageData, err := s3Svc.Download(ctx, p.ImageKey)
 	if err != nil {
 		_ = Queries.UpdateImageStatus(ctx, db.UpdateImageStatusParams{
-			ID:     int32(p.ImageID),
-			Status: pgtype.Text{String: "failed", Valid: true},
+			ID:        int32(p.ImageID),
+			Status:    pgtype.Text{String: "failed", Valid: true},
+			UpdatedAt: pgtype.Timestamp{Time: time.Now(), Valid: true},
 		})
 		return fmt.Errorf("failed to download image: %w", err)
 	}
@@ -63,8 +67,9 @@ func HandleImagePP(ctx context.Context, t *asynq.Task) error {
 	img, _, err := image.Decode(bytes.NewReader(imageData))
 	if err != nil {
 		_ = Queries.UpdateImageStatus(ctx, db.UpdateImageStatusParams{
-			ID:     int32(p.ImageID),
-			Status: pgtype.Text{String: "failed", Valid: true},
+			ID:        int32(p.ImageID),
+			Status:    pgtype.Text{String: "failed", Valid: true},
+			UpdatedAt: pgtype.Timestamp{Time: time.Now(), Valid: true},
 		})
 		return fmt.Errorf("failed to decode image: %w", err)
 	}
@@ -72,7 +77,10 @@ func HandleImagePP(ctx context.Context, t *asynq.Task) error {
 	// Process operations
 	for _, op := range p.Operations {
 		opType, _ := op["type"].(string)
-		params, _ := op["params"].(map[string]any)
+		params, ok := op["params"].(map[string]any)
+		if !ok {
+			return fmt.Errorf("invalid operation params for %s: expected map[string]any, got %T", opType, op["params"])
+		}
 
 		switch opType {
 		case "watermark":
@@ -80,11 +88,9 @@ func HandleImagePP(ctx context.Context, t *asynq.Task) error {
 			img, err = services.ApplyWatermark(img, wparams)
 			if err != nil {
 				_ = Queries.UpdateImageStatus(ctx, db.UpdateImageStatusParams{
-					ID: int32(p.ImageID),
-					Status: pgtype.Text{
-						String: "failed",
-						Valid:  true,
-					},
+					ID:        int32(p.ImageID),
+					Status:    pgtype.Text{String: "failed", Valid: true},
+					UpdatedAt: pgtype.Timestamp{Time: time.Now(), Valid: true},
 				})
 				return fmt.Errorf("failed to apply watermark: %w", err)
 			}
@@ -100,7 +106,11 @@ func HandleImagePP(ctx context.Context, t *asynq.Task) error {
 	}
 	for _, op := range p.Operations {
 		if opType, _ := op["type"].(string); opType == "compress" {
-			compressParams = parseCompressParams(op["params"].(map[string]any))
+			params, ok := op["params"].(map[string]any)
+			if !ok {
+				return fmt.Errorf("invalid compress params: expected map[string]any, got %T", op["params"])
+			}
+			compressParams = parseCompressParams(params)
 			break
 		}
 	}
@@ -109,8 +119,9 @@ func HandleImagePP(ctx context.Context, t *asynq.Task) error {
 	var buf bytes.Buffer
 	if err := services.Compress(img, compressParams, &buf); err != nil {
 		_ = Queries.UpdateImageStatus(ctx, db.UpdateImageStatusParams{
-			ID:     int32(p.ImageID),
-			Status: pgtype.Text{String: "failed", Valid: true},
+			ID:        int32(p.ImageID),
+			Status:    pgtype.Text{String: "failed", Valid: true},
+			UpdatedAt: pgtype.Timestamp{Time: time.Now(), Valid: true},
 		})
 		return fmt.Errorf("failed to encode image: %w", err)
 	}
@@ -125,8 +136,9 @@ func HandleImagePP(ctx context.Context, t *asynq.Task) error {
 	// Upload processed image
 	if err := s3Svc.Upload(ctx, outputKey, buf.Bytes()); err != nil {
 		_ = Queries.UpdateImageStatus(ctx, db.UpdateImageStatusParams{
-			ID:     int32(p.ImageID),
-			Status: pgtype.Text{String: "failed", Valid: true},
+			ID:        int32(p.ImageID),
+			Status:    pgtype.Text{String: "failed", Valid: true},
+			UpdatedAt: pgtype.Timestamp{Time: time.Now(), Valid: true},
 		})
 		return fmt.Errorf("failed to upload processed image: %w", err)
 	}
@@ -136,8 +148,9 @@ func HandleImagePP(ctx context.Context, t *asynq.Task) error {
 
 	// Update status to "completed"
 	if err := Queries.UpdateImageStatus(ctx, db.UpdateImageStatusParams{
-		ID:     int32(p.ImageID),
-		Status: pgtype.Text{String: "completed", Valid: true},
+		ID:        int32(p.ImageID),
+		Status:    pgtype.Text{String: "completed", Valid: true},
+		UpdatedAt: pgtype.Timestamp{Time: time.Now(), Valid: true},
 	}); err != nil {
 		return fmt.Errorf("failed to update image status to completed: %w", err)
 	}

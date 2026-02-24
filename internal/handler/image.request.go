@@ -5,7 +5,7 @@ import (
 	"imagepp/internal/db"
 	Job "imagepp/internal/jobs"
 	"imagepp/internal/scheduler"
-	helpers "imagepp/pkg/helpers"
+	"imagepp/pkg/helpers"
 	"net/http"
 	"time"
 
@@ -45,7 +45,7 @@ type Operation struct {
 
 type CompressParams struct {
 	Quality   int    `json:"quality" validate:"required,min=1,max=100"`
-	Format    string `json:"format" validate:"required,oneof=jpeg png webp"`
+	Format    string `json:"format" validate:"required,oneof=jpeg png"`
 	MaxWidth  int    `json:"max_width,omitempty" validate:"omitempty,min=1"`
 	MaxHeight int    `json:"max_height,omitempty" validate:"omitempty,min=1"`
 }

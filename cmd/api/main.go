@@ -31,7 +31,10 @@ func main() {
 
 	dbpool := db.Get()
 	logg.Info().Msg("database pool initialized")
-	opt, _ := redis.ParseURL(cfg.RedisUrl)
+	opt, err := redis.ParseURL(cfg.RedisUrl)
+	if err != nil {
+		logg.Fatal().Err(err).Msg("failed to parse redis url")
+	}
 	rdb := redis.NewClient(opt)
 
 	if err := rdb.Ping(ctx).Err(); err != nil {

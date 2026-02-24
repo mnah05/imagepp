@@ -73,9 +73,15 @@ func ApplyWatermark(img image.Image, params WatermarkParams) (image.Image, error
 		fontSize = 24
 	}
 
-	// Load font (using gg's default font)
-	// gg.LoadFontFace loads system fonts, fallback to built-in if not found
-	dc.LoadFontFace("lato", fontSize)
+	// Load font (using gg's default font with error handling)
+	// Try to load a system font, fallback to gg's default if not found
+	if err := dc.LoadFontFace("Arial", fontSize); err != nil {
+		// If Arial fails, try other common fonts
+		if err := dc.LoadFontFace("Helvetica", fontSize); err != nil {
+			// Use gg's built-in font as final fallback
+			// gg will use its default font when LoadFontFace fails
+		}
+	}
 
 	// Parse color
 	c := parseColor(params.Color)
