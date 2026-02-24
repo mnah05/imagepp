@@ -2,17 +2,16 @@ package main
 
 import (
 	"context"
-	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
-	"time"
-
 	"imagepp/internal/config"
 	"imagepp/internal/db"
 	"imagepp/internal/handler"
 	"imagepp/internal/scheduler"
 	"imagepp/pkg/logger"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/hibiken/asynq"
 	"github.com/redis/go-redis/v9"
@@ -55,11 +54,12 @@ func main() {
 	router := handler.NewRouter(logg, cfg, dbpool, rdb, schedulerClient)
 
 	server := &http.Server{
-		Addr:         ":" + cfg.AppPort,
-		Handler:      router,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		Addr:           ":" + cfg.AppPort,
+		Handler:        router,
+		ReadTimeout:    10 * time.Second,
+		WriteTimeout:   10 * time.Second,
+		IdleTimeout:    60 * time.Second,
+		MaxHeaderBytes: 1 << 20, // 1MB
 	}
 
 	go func() {
